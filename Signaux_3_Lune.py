@@ -1,5 +1,6 @@
 import skimage as skim
 from scipy import signal
+from scipy import ndimage as ndi 
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -18,14 +19,16 @@ def analyser_lune(image_path, hemisphere="N"):
     ], dtype=float) / 16.0
     I_flou = signal.convolve2d(I, h_LP, mode='same')
 
-    # 3. Détection des bords avec Sobel (comme dans le labo) + segmentation
+    # 3. Détection des bords avec Sobel + segmentation robuste à la lumière cendrée
     I_sobel = skim.filters.sobel(I_flou)
-    seuil = skim.filters.threshold_otsu(I_flou)
+    seuil_otsu = skim.filters.threshold_otsu(I_flou)
+    seuil = max(seuil_otsu, 0.35 * np.max(I_flou))
     masque = I_flou > seuil
 
-    # Nettoyage morphologique pour garder un disque/croissant plein
+    # Nettoyage morphologique + rebouchage des mers lunaires
     noyau = skim.morphology.disk(5)
     masque = skim.morphology.closing(masque, noyau)
+    masque = ndi.binary_fill_holes(masque)
     masque = skim.morphology.opening(masque, noyau)
 
     # 4. Extraction de la Lune (plus grande région connectée)
@@ -107,5 +110,5 @@ def analyser_lune(image_path, hemisphere="N"):
     return round(float(jour_lunaire), 1), phase
 
 # --- Exécution sur une image précise ---
-jour, phase = analyser_lune('dataset_nasa/jour_07.jpg')
+jour, phase = analyser_lune('datasetLune/moon.7537.png')
 print(f"Résultat : Jour {jour} ({phase})")
