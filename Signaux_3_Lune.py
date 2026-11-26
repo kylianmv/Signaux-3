@@ -4,10 +4,9 @@ from scipy import ndimage as ndi
 import numpy as np
 import matplotlib.pyplot as plt
 
-def analyser_lune(image_path, hemisphere="N"):
+def analyser_lune(image_path, hemisphere="N", afficher=True):
     # 1. Lecture de l'image comme dans le labo
     I = plt.imread(image_path).astype(float)
-    # Si l'image est en couleur (RGB/RGBA), on passe en niveaux de gris 2D
     if I.ndim == 3:
         I = np.mean(I[:, :, :3], axis=2)
 
@@ -35,8 +34,9 @@ def analyser_lune(image_path, hemisphere="N"):
     labels = skim.measure.label(masque)
     regions = skim.measure.regionprops(labels)
     if not regions:
-        print("Aucune lune détectée.")
-        return None
+        if afficher:
+            print("Aucune lune détectée.")
+        return 0.0, "Nouvelle lune"
 
     lune = max(regions, key=lambda r: r.area)
     aire_illuminee = lune.area
@@ -82,33 +82,35 @@ def analyser_lune(image_path, hemisphere="N"):
     else:
         phase = "Dernier croissant"
 
-    # 7. Affichage en subplots (style du labo)
-    plt.figure(figsize=(10, 10))
+    # 7. Affichage uniquement si afficher=True
+    if afficher:
+        plt.figure(figsize=(10, 10))
 
-    plt.subplot(2, 2, 1)
-    plt.title('1. Image de base')
-    plt.imshow(I, cmap='gray')
+        plt.subplot(2, 2, 1)
+        plt.title('1. Image de base')
+        plt.imshow(I, cmap='gray')
 
-    plt.subplot(2, 2, 2)
-    plt.title('2. Bords (Sobel)')
-    plt.imshow(I_sobel, cmap='gray')
+        plt.subplot(2, 2, 2)
+        plt.title('2. Bords (Sobel)')
+        plt.imshow(I_sobel, cmap='gray')
 
-    plt.subplot(2, 2, 3)
-    plt.title('3. Masque segmenté (Otsu)')
-    plt.imshow(masque, cmap='gray')
+        plt.subplot(2, 2, 3)
+        plt.title('3. Masque segmenté (Otsu)')
+        plt.imshow(masque, cmap='gray')
 
-    plt.subplot(2, 2, 4)
-    plt.title(f'4. Jour {jour_lunaire:.1f} - {phase} ({k*100:.1f}%)')
-    plt.imshow(I, cmap='gray')
-    ax = plt.gca()
-    ax.add_patch(plt.Circle((xc_cercle, yc_cercle), rayon, color='cyan', fill=False, linewidth=2, linestyle='--'))
-    plt.scatter([xb], [yb], color='red', s=40)
+        plt.subplot(2, 2, 4)
+        plt.title(f'4. Jour {jour_lunaire:.1f} - {phase} ({k*100:.1f}%)')
+        plt.imshow(I, cmap='gray')
+        ax = plt.gca()
+        ax.add_patch(plt.Circle((xc_cercle, yc_cercle), rayon, color='cyan', fill=False, linewidth=2, linestyle='--'))
+        plt.scatter([xb], [yb], color='red', s=40)
 
-    plt.tight_layout()
-    plt.show()
+        plt.tight_layout()
+        plt.show()
 
     return round(float(jour_lunaire), 1), phase
 
-# --- Exécution sur une image précise ---
-jour, phase = analyser_lune('datasetLune/moon.7537.png')
-print(f"Résultat : Jour {jour} ({phase})")
+# --- Ne s'exécute que si on lance directement Signaux_3_Lune.py ---
+if __name__ == "__main__":
+    jour, phase = analyser_lune('datasetLune/moon.7537.png')
+    print(f"Résultat : Jour {jour} ({phase})")
