@@ -1,8 +1,41 @@
 import skimage as skim
 from scipy import signal
-from scipy import ndimage as ndi 
+from scipy import ndimage as ndi
 import numpy as np
 import matplotlib.pyplot as plt
+from skimage.measure import label, regionprops
+
+
+def selectionner_region_lunaire(
+    masque: np.ndarray,
+    image_gris: np.ndarray,
+    min_aire: int = 80,
+) -> np.ndarray:
+    """Sélectionne la région la plus susceptible d'être le disque lunaire."""
+    labels = label(masque)
+    h_img, w_img = masque.shape
+    aire_max_raisonnable = 0.15 * (h_img * w_img)
+    luminosite_max = float(np.max(image_gris)) if np.max(image_gris) > 0 else 1.0
+
+    meilleur_score = -1.0
+    meilleur_masque = masque
+
+    for reg in regionprops(labels, intensity_image=image_gris):
+        if reg.area < min_aire or reg.area > aire_max_raisonnable:
+            continue
+
+        perimetre = reg.perimeter if reg.perimeter > 0 else 1.0
+        circularite = (4.0 * np.pi * reg.area) / (perimetre ** 2)
+        pic_relatif = reg.max_intensity / luminosite_max
+
+        score = (circularite ** 1.5) * (1.0 - 0.6 * reg.eccentricity) * (pic_relatif ** 2)
+
+        if score > meilleur_score:
+            meilleur_score = score
+            meilleur_masque = (labels == reg.label)
+
+    return meilleur_masque
+
 
 def analyser_lune(image_path, hemisphere="N", afficher=True):
     # 1. Lecture de l'image comme dans le labo
@@ -23,14 +56,15 @@ def analyser_lune(image_path, hemisphere="N", afficher=True):
     seuil_otsu = skim.filters.threshold_otsu(I_flou)
     seuil = max(seuil_otsu, 0.35 * np.max(I_flou))
     masque = I_flou > seuil
+    masque = selectionner_region_lunaire(masque, I_flou)
 
     # Nettoyage morphologique + rebouchage des mers lunaires
-    noyau = skim.morphology.disk(5)
+    noyau = skim.morphology.disk(3)
     masque = skim.morphology.closing(masque, noyau)
     masque = ndi.binary_fill_holes(masque)
     masque = skim.morphology.opening(masque, noyau)
 
-    # 4. Extraction de la Lune (plus grande région connectée)
+    # 4. Extraction de la Lune (région sélectionnée)
     labels = skim.measure.label(masque)
     regions = skim.measure.regionprops(labels)
     if not regions:
@@ -102,7 +136,16 @@ def analyser_lune(image_path, hemisphere="N", afficher=True):
         plt.title(f'4. Jour {jour_lunaire:.1f} - {phase} ({k*100:.1f}%)')
         plt.imshow(I, cmap='gray')
         ax = plt.gca()
-        ax.add_patch(plt.Circle((xc_cercle, yc_cercle), rayon, color='cyan', fill=False, linewidth=2, linestyle='--'))
+        ax.add_patch(
+            plt.Circle(
+                (xc_cercle, yc_cercle),
+                rayon,
+                color='cyan',
+                fill=False,
+                linewidth=2,
+                linestyle='--',
+            )
+        )
         plt.scatter([xb], [yb], color='red', s=40)
 
         plt.tight_layout()
@@ -110,7 +153,8 @@ def analyser_lune(image_path, hemisphere="N", afficher=True):
 
     return round(float(jour_lunaire), 1), phase
 
-# --- Ne s'exécute que si on lance directement Signaux_3_Lune.py ---
+
+# --- TEST FICHIER ---
 if __name__ == "__main__":
-    jour, phase = analyser_lune('datasetLune/moon.7537.png')
+    jour, phase = analyser_lune("test1.png")
     print(f"Résultat : Jour {jour} ({phase})")
